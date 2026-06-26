@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文化祭限定クイズラリー</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #1f1c2c, #928dab);
+            color: #fff;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 500px;
+            margin: 50px auto;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        h1 { font-size: 24px; margin-bottom: 20px; letter-spacing: 2px; }
+        input[type="text"] {
+            width: 80%; padding: 12px; font-size: 18px; border: none;
+            border-radius: 8px; margin-bottom: 20px; text-align: center;
+        }
+        
+        button {
+            background: linear-gradient(to right, #ff4b2b, #ff416c);
+            color: white; border: none; padding: 12px 30px; font-size: 18px;
+            font-weight: bold; border-radius: 25px; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(255, 65, 108, 0.4); transition: 0.3s;
+        }
+        button:hover { transform: scale(1.05); }
+        button:disabled { background: #555; cursor: not-allowed; box-shadow: none; }
+        
+        #result-area {
+            margin-top: 30px; padding-top: 20px;
+            border-top: 1px solid rgba(255,255,255,0.2); display: none;
+        }
+        .success-msg { color: #4def91; font-size: 20px; font-weight: bold; margin-bottom: 5px; }
+        .count-msg { color: #ffeb3b; font-size: 16px; margin-bottom: 20px; font-weight: bold; }
+        .video-container {
+            position: relative; padding-bottom: 56.25%; height: 0;
+            overflow: hidden; margin-top: 15px; border-radius: 8px;
+        }
+        .video-container iframe { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+        /* PDFを開くボタンのデザイン */
+        .btn-link {
+            display: inline-block;
+            background: linear-gradient(to right, #0072ff, #00c6ff);
+            color: white;
+            text-decoration: none;
+            padding: 15px 40px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 25px;
+            margin-top: 15px;
+            box-shadow: 0 4px 15px rgba(0, 114, 255, 0.4);
+            transition: 0.3s;
+        }
+        .btn-link:hover {
+            transform: scale(1.05);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>任務だヨ！全員集合</h1>
+        <p>手に入れたパスワードを入力せよ</p>
+        
+        <input type="text" id="answer-input" placeholder="ここにパスワードを入力">
+        <br>
+        <button id="submit-btn" onclick="checkAnswer()">解読する</button>
+
+        <div id="result-area">
+            <div class="success-msg">🔓 解読成功！</div>
+            <div class="count-msg" id="counter-display"></div>
+            <div id="content-box"></div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 【重要】GASのウェブアプリURLをここに貼り付けてください
+        // ==========================================
+        const GAS_URL = "https://script.google.com/macros/s/AKfycby_4c9YFnOIYBv_dTcFSxnS-kD37q7Jf5_c529b4rcZA9Ai18FfSdWhdtVlACKsTImvSA/exec";
+
+        // 【設定】暗号データ
+        const quizData = {
+            "こうこう": `
+                <p>🎉 見事、暗号解読成功！次のミッションが解放された！</p>
+                <a href="quiz.pdf" class="btn-link" target="_blank">📄 クイズを表示する</a>
+            `
+        };
+
+
+        async function checkAnswer() {
+            const userInput = document.getElementById("answer-input").value.trim();
+            const resultArea = document.getElementById("result-area");
+            const contentBox = document.getElementById("content-box");
+            const counterDisplay = document.getElementById("counter-display");
+            const submitBtn = document.getElementById("submit-btn");
+
+            if (userInput in quizData) {
+                // 連打防止のために一時的にボタンを無効化
+                submitBtn.disabled = true;
+
+                // 正解画面と動画を表示（何回入力してもこれは必ず出る）
+                contentBox.innerHTML = quizData[userInput];
+                resultArea.style.display = "block";
+                resultArea.scrollIntoView({ behavior: 'smooth' });
+
+                // --- 【ここが変更点】カウント処理 ---
+                // まだ一度もこのスマホで正解したことがない場合だけ、GASに通信する
+                if (localStorage.getItem("quiz_cleared") !== "true") {
+                    
+                    // 1回目なのでLocalStorageに証拠を記録
+                    localStorage.setItem("quiz_cleared", "true");
+                    counterDisplay.innerText = "読み込み中...";
+
+                    try {
+                        const response = await fetch(GAS_URL, {
+                            method: "POST",
+                            mode: "cors",
+                            body: JSON.stringify({ answer: userInput })
+                        });
+                        const data = await response.json();
+                        if (data.status === "success") {
+                            // 1回目の時は「◯人目！」と表示
+                            counterDisplay.innerText = `あなたは ${data.count} 人目の正解者です！`;
+                        } else {
+                            counterDisplay.innerText = "";
+                        }
+                    } catch (error) {
+                        console.error("Error:", error);
+                        counterDisplay.innerText = "";
+                    }
+                } else {
+                    // 2回目以降のリロード後であれば、GASへの通信は完全にスキップする
+                    // （「◯人目」の表示だけ消して、動画はそのまま見せる）
+                    counterDisplay.innerText = "（クリア済み端末です）";
+                }
+
+                // ボタンを元に戻す（リロードしなくても、もう一度別の言葉を試したりできるように）
+                submitBtn.disabled = false;
+
+            } else {
+                alert("暗号が正しくありません。もう一度考え直してください。");
+                resultArea.style.display = "none";
+            }
+        }
+    </script>
+</body>
+</html>
